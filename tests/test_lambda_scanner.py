@@ -2,10 +2,12 @@
 Tests for the main lambda_scanner module
 """
 
+import logging
+import re
 from unittest.mock import patch
 from io import StringIO
 
-from lambda_scanner import calculate_statistics, print_summary
+from lambda_scanner import calculate_statistics, print_summary, export_deprecated_runtimes_csv, generate_timestamped_filename
 
 
 class TestLambdaScanner:
@@ -150,3 +152,107 @@ class TestLambdaScanner:
         assert "DEPRECATED RUNTIMES DETECTED" in output
         assert "DeprecatedFunction (python3.7) in us-east-1" in output
         assert "123456789012" not in output  # Should not contain account ID
+
+    def test_export_deprecated_runtimes_csv(self, tmp_path):
+        """Test CSV export of deprecated runtimes."""
+        logger = logging.getLogger(__name__)
+
+        sample_results = [
+            {
+                'runtime': 'python3.7',
+                'language_name': 'Python',
+                'language_version': '3.7',
+                'support_status': 'deprecated',
+                'function_name': 'DeprecatedFunction1',
+                'region': 'us-east-1',
+                'account_id': '123456789012'
+            },
+            {
+                'runtime': 'python3.9',
+                'language_name': 'Python',
+                'language_version': '3.9',
+                'support_status': 'supported',
+                'function_name': 'SupportedFunction',
+                'region': 'us-east-1',
+                'account_id': '123456789012'
+            },
+            {
+                'runtime': 'nodejs14.x',
+                'language_name': 'Node.js',
+                'language_version': '14.x',
+                'support_status': 'deprecated',
+                'function_name': 'DeprecatedFunction2',
+                'region': 'us-west-2',
+                'account_id': '987654321098'
+            }
+        ]
+
+        csv_file = tmp_path / "deprecated_runtimes.csv"
+        export_deprecated_runtimes_csv(sample_results, str(csv_file), logger)
+
+        # Verify CSV file was created and contains correct data
+        assert csv_file.exists()
+
+        with open(csv_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Check header
+        assert "account_number,region,language,language_version,name,ARN" in content
+
+        # Check deprecated functions are included
+        assert "123456789012,us-east-1,Python,3.7,DeprecatedFunction1" in content
+        assert "987654321098,us-west-2,Node.js,14.x,DeprecatedFunction2" in content
+
+        # Check ARNs are correctly formatted
+        assert "arn:aws:lambda:us-east-1:123456789012:function:DeprecatedFunction1" in content
+        assert "arn:aws:lambda:us-west-2:987654321098:function:DeprecatedFunction2" in content
+
+        # Check supported function is NOT included
+        assert "SupportedFunction" not in content
+
+    def test_export_deprecated_runtimes_csv_no_deprecated(self, tmp_path):
+        """Test CSV export when no deprecated runtimes exist."""
+        logger = logging.getLogger(__name__)
+
+        sample_results = [
+            {
+                'runtime': 'python3.9',
+                'language_name': 'Python',
+                'language_version': '3.9',
+                'support_status': 'supported',
+                'function_name': 'SupportedFunction',
+                'region': 'us-east-1',
+                'account_id': '123456789012'
+            }
+        ]
+
+        csv_file = tmp_path / "deprecated_runtimes.csv"
+        export_deprecated_runtimes_csv(sample_results, str(csv_file), logger)
+
+        # Verify CSV file was NOT created
+        assert not csv_file.exists()
+
+    def test_generate_timestamped_filename(self):
+        """Test timestamped filename generation."""
+
+        # Test with JSON file (no account ID)
+        result = generate_timestamped_filename('report.json')
+
+        # Should match pattern: YYYYMMDD-HHMMSS_report.json
+        pattern = r'^\d{8}-\d{6}_report\.json$'
+        assert re.match(pattern, result), f"Filename '{result}' doesn't match expected pattern"
+
+        # Test with CSV file and account ID
+        result = generate_timestamped_filename('deprecated.csv', '123456789012')
+        pattern = r'^\d{8}-\d{6}-123456789012_deprecated\.csv$'
+        assert re.match(pattern, result), f"Filename '{result}' doesn't match expected pattern"
+
+        # Test with JSON file and account ID
+        result = generate_timestamped_filename('report.json', '987654321098')
+        pattern = r'^\d{8}-\d{6}-987654321098_report\.json$'
+        assert re.match(pattern, result), f"Filename '{result}' doesn't match expected pattern"
+
+        # Test with path and account ID
+        result = generate_timestamped_filename('reports/analysis.json', '555666777888')
+        pattern = r'^\d{8}-\d{6}-555666777888_reports/analysis\.json$'
+        assert re.match(pattern, result), f"Filename '{result}' doesn't match expected pattern"

@@ -78,6 +78,9 @@ python lambda_scanner.py --org --profile management-account --region us-east-1
 
 # Verbose organization scanning
 python lambda_scanner.py --org --verbose
+
+# Export deprecated runtimes to CSV
+python lambda_scanner.py --org --csv deprecated_runtimes.csv
 ```
 
 ### Cross-Account Access Methods
@@ -103,6 +106,72 @@ Example deprecated runtime output:
    • tf-sample-aws-dev-web-app (python3.13) in us-east-1 of 514869215994
    → Consider upgrading these 2 function(s) to supported runtimes
 ```
+
+## CSV Export for Deprecated Runtimes
+
+The `--csv` option creates a CSV file containing only Lambda functions with deprecated runtimes, making it easy to track and remediate outdated functions across your organization.
+
+### CSV Format
+
+The CSV file includes the following columns:
+- **account_number**: AWS account ID
+- **region**: AWS region
+- **language**: Programming language (e.g., Python, Node.js)
+- **language_version**: Language version (e.g., 3.13, 14.x)
+- **name**: Lambda function name
+- **ARN**: Complete Lambda function ARN
+
+### CSV Export Examples
+
+```bash
+# Export deprecated runtimes from single account
+python lambda_scanner.py --csv deprecated_runtimes.csv
+
+# Export deprecated runtimes from organization
+python lambda_scanner.py --org --csv org_deprecated_runtimes.csv
+
+# Combine with other options
+python lambda_scanner.py --org --region us-east-1 --csv deprecated_runtimes.csv --verbose
+```
+
+### Sample CSV Output
+
+```csv
+account_number,region,language,language_version,name,ARN
+018194650040,us-east-1,Python,3.13,aws-controltower-NotificationForwarder,arn:aws:lambda:us-east-1:018194650040:function:aws-controltower-NotificationForwarder
+514869215994,us-east-1,Python,3.13,tf-sample-aws-dev-web-app,arn:aws:lambda:us-east-1:514869215994:function:tf-sample-aws-dev-web-app
+```
+
+**Note**: If no deprecated runtimes are found, the CSV file will not be created and a message will be logged.
+
+## Timestamped Output Files
+
+All output files (JSON reports and CSV exports) are automatically prefixed with timestamps and AWS account numbers in the format `YYYYMMDD-HHMMSS-ACCOUNT_ID` to prevent overwrites and enable historical tracking.
+
+### Filename Format Examples
+
+```bash
+# Single account scanning
+20250910-103547-992382657570_lambda_assessment_report.json
+20250910-103547-992382657570_deprecated_runtimes.csv
+
+# Organization scanning (uses management account ID)
+20250910-103606-992382657570_lambda_assessment_report.json
+20250910-103606-992382657570_deprecated_runtimes.csv
+
+# Custom output filenames
+20250910-142530-123456789012_custom_report.json
+20250910-142530-123456789012_my_deprecated.csv
+```
+
+### Benefits
+
+- **No overwrites**: Each scan creates a unique file with timestamp and account ID
+- **Account identification**: Immediately know which AWS account the report belongs to
+- **Historical tracking**: Easy to compare scans over time for specific accounts
+- **Organization clarity**: When scanning organizations, files are tagged with management account
+- **Automation friendly**: Predictable filename patterns for scripts and processing
+- **Compliance auditing**: Timestamped and account-tagged evidence of security assessments
 
 ## Configuration
 
@@ -144,6 +213,7 @@ Options:
 - `-f, --format`: Output format (json|csv)
 - `-v, --verbose`: Enable verbose logging
 - `--org`: Scan all accounts in AWS Organization (requires management account access)
+- `--csv`: Export deprecated runtimes to CSV file (e.g., deprecated_runtimes.csv)
 
 ## Report Format
 

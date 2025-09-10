@@ -6,6 +6,7 @@ Scans AWS Lambda functions across regions and generates a comprehensive report
 including runtime information, versions, sizes, and code complexity.
 """
 
+import csv
 import json
 import logging
 import sys
@@ -93,6 +94,58 @@ def calculate_statistics(all_results: list) -> Dict:
         stats['total_lines_of_code'] += func['lines_of_code']
 
     return stats
+
+
+def export_deprecated_runtimes_csv(all_results: list, csv_file: str, logger) -> None:
+    """
+    Export deprecated runtimes to CSV file.
+
+    Args:
+        all_results: List of Lambda function results
+        csv_file: Path to CSV file to create
+        logger: Logger instance
+    """
+    deprecated_functions = [f for f in all_results if f['support_status'] == 'deprecated']
+
+    if not deprecated_functions:
+        logger.info("No deprecated runtimes found. CSV file not created.")
+        return
+
+    try:
+        with open(csv_file, 'w', newline='', encoding='utf-8') as csvfile:
+            fieldnames = [
+                'account_number',
+                'region',
+                'language',
+                'language_version',
+                'name',
+                'ARN'
+            ]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+            # Write header
+            writer.writeheader()
+
+            # Write deprecated functions
+            for func in deprecated_functions:
+                # Construct ARN
+                account_id = func.get('account_id', 'unknown')
+                arn = f"arn:aws:lambda:{func['region']}:{account_id}:function:{func['function_name']}"
+
+                row = {
+                    'account_number': account_id,
+                    'region': func['region'],
+                    'language': func['language_name'],
+                    'language_version': func['language_version'],
+                    'name': func['function_name'],
+                    'ARN': arn
+                }
+                writer.writerow(row)
+
+        logger.info("Exported %d deprecated runtime(s) to CSV: %s", len(deprecated_functions), csv_file)
+
+    except Exception as e:
+        logger.error("Error writing CSV file %s: %s", csv_file, e)
 
 
 def print_summary(all_results: list, regions: list, is_org_scan: bool = False) -> None:
@@ -298,6 +351,23 @@ def scan_regions(lambda_analyzer, runtime_checker, regions: list, logger) -> lis
     return all_results
 
 
+def generate_timestamped_filename(base_filename: str, account_id: str = None) -> str:
+    """
+    Generate a timestamped filename with format YYYYMMDD-HHMMSS-ACCOUNT_ID prefix.
+
+    Args:
+        base_filename: Base filename (e.g., 'report.json', 'deprecated.csv')
+        account_id: AWS account ID to include in filename
+
+    Returns:
+        Timestamped filename (e.g., '20250910-142530-123456789012_report.json')
+    """
+    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    if account_id:
+        return f"{timestamp}-{account_id}_{base_filename}"
+    return f"{timestamp}_{base_filename}"
+
+
 @click.command()
 @click.option('--config', '-c', default='config.yaml', help='Configuration file path')
 @click.option('--profile', '-p', help='AWS profile to use')
@@ -306,6 +376,7 @@ def scan_regions(lambda_analyzer, runtime_checker, regions: list, logger) -> lis
 @click.option('--format', '-f', 'output_format', type=click.Choice(['json', 'csv']), help='Output format')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
 @click.option('--org', is_flag=True, help='Scan all accounts in AWS Organization (requires management account access)')
+@click.option('--csv', help='Export deprecated runtimes to CSV file (e.g., deprecated_runtimes.csv)')
 def main(**kwargs) -> None:
     """AWS Lambda Assessment Scanner - Analyze Lambda functions across regions."""
 
@@ -328,6 +399,9 @@ def main(**kwargs) -> None:
         default_region=config_data['aws']['default_region']
     )
     runtime_checker = RuntimeChecker()
+
+    # Get account ID for filename generation
+    account_id = aws_client.get_account_id()
 
     # Check if organization scanning is requested
     if kwargs.get('org'):
@@ -358,8 +432,9 @@ def main(**kwargs) -> None:
         'functions': all_results
     }
 
-    # Save results
-    output_file = config_data['output']['file']
+    # Save results with timestamped filename including account ID
+    base_output_file = config_data['output']['file']
+    output_file = generate_timestamped_filename(base_output_file, account_id)
     report_format = config_data['output']['format']
 
     if report_format == 'json':
@@ -368,6 +443,12 @@ def main(**kwargs) -> None:
 
     # Print summary to STDOUT
     print_summary(all_results, regions, kwargs.get('org', False))
+
+    # Export deprecated runtimes to CSV if requested
+    csv_file = kwargs.get('csv')
+    if csv_file:
+        timestamped_csv_file = generate_timestamped_filename(csv_file, account_id)
+        export_deprecated_runtimes_csv(all_results, timestamped_csv_file, logger)
 
     logger.info("Scan complete. Found %d Lambda functions across %d regions",
                 len(all_results), len(regions))

@@ -84,6 +84,21 @@ class AWSClientManager:
         """Get Organizations client for the default region."""
         return self.get_client('organizations', self.default_region)
 
+    def get_account_id(self) -> str:
+        """
+        Get the AWS account ID for the current session.
+
+        Returns:
+            AWS account ID as string
+        """
+        try:
+            sts_client = self.get_client('sts', self.default_region)
+            identity = sts_client.get_caller_identity()
+            return identity['Account']
+        except Exception as e:
+            self.logger.error("Failed to get account ID: %s", e)
+            return "unknown"
+
     def list_regions(self) -> list:
         """List all available AWS regions."""
         try:
