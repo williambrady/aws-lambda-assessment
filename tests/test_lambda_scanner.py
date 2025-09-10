@@ -101,3 +101,52 @@ class TestLambdaScanner:
         assert "AWS LAMBDA ASSESSMENT SUMMARY" in output
         assert "Total Functions Found: 0" in output
         assert "No Lambda functions found" in output
+
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_print_summary_with_deprecated_runtimes_org_mode(self, mock_stdout):
+        """Test summary printing with deprecated runtimes in organization mode."""
+        sample_results = [
+            {
+                'runtime': 'python3.7',
+                'language_name': 'Python',
+                'support_status': 'deprecated',
+                'complexity_score': 'low',
+                'code_size': 1000,
+                'lines_of_code': 50,
+                'function_name': 'DeprecatedFunction',
+                'region': 'us-east-1',
+                'account_id': '123456789012'
+            }
+        ]
+        regions = ['us-east-1']
+
+        print_summary(sample_results, regions, is_org_scan=True)
+
+        output = mock_stdout.getvalue()
+        assert "DEPRECATED RUNTIMES DETECTED" in output
+        assert "DeprecatedFunction (python3.7) in us-east-1 of 123456789012" in output
+
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_print_summary_with_deprecated_runtimes_single_account(self, mock_stdout):
+        """Test summary printing with deprecated runtimes in single account mode."""
+        sample_results = [
+            {
+                'runtime': 'python3.7',
+                'language_name': 'Python',
+                'support_status': 'deprecated',
+                'complexity_score': 'low',
+                'code_size': 1000,
+                'lines_of_code': 50,
+                'function_name': 'DeprecatedFunction',
+                'region': 'us-east-1'
+                # No account_id for single account mode
+            }
+        ]
+        regions = ['us-east-1']
+
+        print_summary(sample_results, regions, is_org_scan=False)
+
+        output = mock_stdout.getvalue()
+        assert "DEPRECATED RUNTIMES DETECTED" in output
+        assert "DeprecatedFunction (python3.7) in us-east-1" in output
+        assert "123456789012" not in output  # Should not contain account ID

@@ -80,6 +80,10 @@ class AWSClientManager:
         """Get Lambda client for specified region."""
         return self.get_client('lambda', region)
 
+    def get_organizations_client(self):
+        """Get Organizations client for the default region."""
+        return self.get_client('organizations', self.default_region)
+
     def list_regions(self) -> list:
         """List all available AWS regions."""
         try:

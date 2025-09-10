@@ -18,6 +18,7 @@ import yaml
 from modules.aws_client import AWSClientManager
 from modules.lambda_analyzer import LambdaAnalyzer
 from modules.runtime_checker import RuntimeChecker
+from modules.organizations_manager import OrganizationsManager
 
 
 def setup_logging(level: str = "INFO") -> None:
@@ -94,7 +95,7 @@ def calculate_statistics(all_results: list) -> Dict:
     return stats
 
 
-def print_summary(all_results: list, regions: list) -> None:
+def print_summary(all_results: list, regions: list, is_org_scan: bool = False) -> None:
     """Print a comprehensive summary of Lambda findings to STDOUT."""
     print("\n" + "="*80)
     print("AWS LAMBDA ASSESSMENT SUMMARY")
@@ -105,6 +106,14 @@ def print_summary(all_results: list, regions: list) -> None:
     print("\n📊 SCAN OVERVIEW:")
     print(f"   • Total Functions Found: {total_functions}")
     print(f"   • Regions Scanned: {len(regions)} ({', '.join(regions)})")
+
+    if is_org_scan:
+        # Count unique accounts
+        accounts = set()
+        for func in all_results:
+            if 'account_id' in func:
+                accounts.add(func['account_id'])
+        print(f"   • Organization Accounts: {len(accounts)}")
 
     if total_functions == 0:
         print("\n   No Lambda functions found in the specified regions.")
@@ -156,7 +165,11 @@ def print_summary(all_results: list, regions: list) -> None:
     if deprecated_functions:
         print("\n⚠️  DEPRECATED RUNTIMES DETECTED:")
         for func in deprecated_functions:
-            print(f"   • {func['function_name']} ({func['runtime']}) in {func['region']}")
+            # Include account info if available (organization scanning)
+            if 'account_id' in func:
+                print(f"   • {func['function_name']} ({func['runtime']}) in {func['region']} of {func['account_id']}")
+            else:
+                print(f"   • {func['function_name']} ({func['runtime']}) in {func['region']}")
         print(f"   → Consider upgrading these {len(deprecated_functions)} function(s) to supported runtimes")
 
     # Show largest functions
@@ -167,6 +180,96 @@ def print_summary(all_results: list, regions: list) -> None:
             print(f"   {i}. {func['function_name']}: {func['lines_of_code']} lines ({func['complexity_score']} complexity)")
 
     print("\n" + "="*80)
+
+
+def create_cross_account_client(session, default_region, logger):
+    """Create a temporary AWS client for cross-account access."""
+    class CrossAccountClient:
+        """Temporary AWS client for cross-account access."""
+
+        def __init__(self, session, default_region, logger):
+            self.default_region = default_region
+            self._session = session
+            self._clients = {}
+            self.logger = logger
+
+        def get_client(self, service: str, region: str):
+            """Get AWS client for specified service and region."""
+            if region not in self._clients:
+                self._clients[region] = {}
+            if service not in self._clients[region]:
+                client = self._session.client(service, region_name=region)
+                self._clients[region][service] = client
+            return self._clients[region][service]
+
+        def get_lambda_client(self, region: str):
+            """Get Lambda client for specified region."""
+            return self.get_client('lambda', region)
+
+    return CrossAccountClient(session, default_region, logger)
+
+
+def scan_organization_accounts(org_manager, runtime_checker, regions: list, logger) -> list:
+    """
+    Scan Lambda functions across all accounts in an AWS Organization.
+
+    Args:
+        org_manager: OrganizationsManager instance
+        runtime_checker: RuntimeChecker instance
+        regions: List of regions to scan
+        logger: Logger instance
+
+    Returns:
+        List of all Lambda function results across all accounts
+    """
+    all_results = []
+
+    # Get all organization accounts
+    try:
+        accounts = org_manager.get_organization_accounts()
+        logger.info("Found %d active accounts in organization", len(accounts))
+    except Exception as e:
+        logger.error("Failed to get organization accounts: %s", e)
+        raise
+
+    # Scan each account
+    for account in accounts:
+        account_id = account['Id']
+        account_name = account['Name']
+
+        logger.info("Scanning account: %s (%s)", account_name, account_id)
+
+        try:
+            # Create cross-account session
+            session = org_manager.create_cross_account_session(account_id)
+            if not session:
+                logger.warning("Skipping account %s due to access issues", account_id)
+                continue
+
+            # Create a temporary AWS client manager for this account
+            temp_aws_client = create_cross_account_client(
+                session, org_manager.aws_client.default_region, logger
+            )
+
+            # Create Lambda analyzer for this account
+            account_lambda_analyzer = LambdaAnalyzer(temp_aws_client)
+
+            # Scan regions for this account
+            account_results = scan_regions(account_lambda_analyzer, runtime_checker, regions, logger)
+
+            # Add account information to each result
+            for result in account_results:
+                result['account_id'] = account_id
+                result['account_name'] = account_name
+
+            all_results.extend(account_results)
+            logger.info("Found %d Lambda functions in account %s", len(account_results), account_name)
+
+        except Exception as e:
+            logger.error("Error scanning account %s (%s): %s", account_name, account_id, e)
+            continue
+
+    return all_results
 
 
 def scan_regions(lambda_analyzer, runtime_checker, regions: list, logger) -> list:
@@ -202,6 +305,7 @@ def scan_regions(lambda_analyzer, runtime_checker, regions: list, logger) -> lis
 @click.option('--output', '-o', help='Output file path')
 @click.option('--format', '-f', 'output_format', type=click.Choice(['json', 'csv']), help='Output format')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
+@click.option('--org', is_flag=True, help='Scan all accounts in AWS Organization (requires management account access)')
 def main(**kwargs) -> None:
     """AWS Lambda Assessment Scanner - Analyze Lambda functions across regions."""
 
@@ -223,13 +327,28 @@ def main(**kwargs) -> None:
         profile=config_data['aws']['profile'],
         default_region=config_data['aws']['default_region']
     )
-
-    lambda_analyzer = LambdaAnalyzer(aws_client)
     runtime_checker = RuntimeChecker()
 
-    # Scan all regions
-    regions = config_data['aws']['regions']
-    all_results = scan_regions(lambda_analyzer, runtime_checker, regions, logger)
+    # Check if organization scanning is requested
+    if kwargs.get('org'):
+        logger.info("Organization scanning mode enabled")
+        org_manager = OrganizationsManager(aws_client)
+
+        # Validate organization access
+        if not org_manager.validate_organization_access():
+            logger.error("Organization access validation failed. Ensure you're using the management account.")
+            return
+
+        # Scan all organization accounts
+        regions = config_data['aws']['regions']
+        logger.info("Scanning %d regions across organization accounts: %s", len(regions), ', '.join(regions))
+        all_results = scan_organization_accounts(org_manager, runtime_checker, regions, logger)
+    else:
+        # Single account scanning
+        lambda_analyzer = LambdaAnalyzer(aws_client)
+        regions = config_data['aws']['regions']
+        logger.info("Scanning %d regions: %s", len(regions), ', '.join(regions))
+        all_results = scan_regions(lambda_analyzer, runtime_checker, regions, logger)
 
     # Generate report
     report = {
@@ -248,7 +367,7 @@ def main(**kwargs) -> None:
             json.dump(report, f, indent=2, default=str)
 
     # Print summary to STDOUT
-    print_summary(all_results, regions)
+    print_summary(all_results, regions, kwargs.get('org', False))
 
     logger.info("Scan complete. Found %d Lambda functions across %d regions",
                 len(all_results), len(regions))

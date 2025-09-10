@@ -5,6 +5,7 @@ A comprehensive tool to scan AWS Lambda functions across regions and generate de
 ## Features
 
 - **Multi-region scanning**: Scan Lambda functions across multiple AWS regions
+- **Organization support**: Scan all accounts in AWS Organizations with `--org` flag
 - **Runtime analysis**: Detect language, version, and AWS support status
 - **Complexity assessment**: Estimate lines of code and complexity scores
 - **Interactive summary**: Beautiful STDOUT summary with statistics and insights
@@ -48,6 +49,59 @@ python lambda_scanner.py --verbose
 
 # Custom output file
 python lambda_scanner.py --output my-report.json
+
+# Organization scanning (requires management account access)
+python lambda_scanner.py --org --profile management-account
+```
+
+## Organization Scanning
+
+The `--org` flag enables scanning across all active accounts in an AWS Organization:
+
+### Prerequisites for Organization Scanning
+- Must be run from the **AWS Organizations management account**
+- Requires the following permissions:
+  - `organizations:DescribeOrganization`
+  - `organizations:ListAccounts`
+- Cross-account access via one of:
+  - AWS profiles named with account IDs (e.g., profile `123456789012`)
+  - IAM roles for cross-account access (default: `OrganizationAccountAccessRole`)
+
+### Organization Scanning Examples
+
+```bash
+# Scan all organization accounts
+python lambda_scanner.py --org
+
+# Organization scan with specific profile and region
+python lambda_scanner.py --org --profile management-account --region us-east-1
+
+# Verbose organization scanning
+python lambda_scanner.py --org --verbose
+```
+
+### Cross-Account Access Methods
+
+The scanner attempts cross-account access in this order:
+
+1. **Profile-based**: Looks for AWS profiles named with the account ID
+2. **Role assumption**: Falls back to assuming `OrganizationAccountAccessRole`
+
+If neither method works, the account is skipped with a warning.
+
+### Organization Scanning Output
+
+When using `--org`, the summary includes additional organization-specific information:
+
+- **Account count**: Total number of organization accounts scanned
+- **Account attribution**: Deprecated runtime findings include account numbers for easy identification
+
+Example deprecated runtime output:
+```
+⚠️  DEPRECATED RUNTIMES DETECTED:
+   • aws-controltower-NotificationForwarder (python3.13) in us-east-1 of 018194650040
+   • tf-sample-aws-dev-web-app (python3.13) in us-east-1 of 514869215994
+   → Consider upgrading these 2 function(s) to supported runtimes
 ```
 
 ## Configuration
@@ -89,6 +143,7 @@ Options:
 - `-o, --output`: Output file path
 - `-f, --format`: Output format (json|csv)
 - `-v, --verbose`: Enable verbose logging
+- `--org`: Scan all accounts in AWS Organization (requires management account access)
 
 ## Report Format
 
@@ -100,6 +155,7 @@ The generated report includes:
 - **Code complexity**: Estimated lines of code, complexity score
 - **Configuration**: Environment variables, layers, VPC config
 - **Location**: S3 download URL for function code
+- **Organization data**: Account ID and name (when using `--org` flag)
 
 ### Report Structure
 ```json

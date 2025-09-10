@@ -1,6 +1,6 @@
 aws:
-  profile: calnet-hr
-  default_region: us-west-2
+  profile: sbx
+  default_region: us-east-1
   regions:
     - us-east-1
     - us-west-2
