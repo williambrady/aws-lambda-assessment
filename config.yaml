@@ -1,5 +1,5 @@
 aws:
-  profile: sbx
+  profile: mgmt
   default_region: us-east-1
   regions:
     - us-east-1

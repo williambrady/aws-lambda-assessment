@@ -77,7 +77,10 @@ def calculate_statistics(all_results: list) -> Dict:
 
         # Support status
         status = func['support_status']
-        if status in stats['support_stats']:
+        # Treat 'deprecation_scheduled' as 'supported' since it's still currently supported
+        if status == 'deprecation_scheduled':
+            stats['support_stats']['supported'] += 1
+        elif status in stats['support_stats']:
             stats['support_stats'][status] += 1
         else:
             stats['support_stats']['unknown'] += 1
@@ -377,6 +380,7 @@ def generate_timestamped_filename(base_filename: str, account_id: str = None) ->
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
 @click.option('--org', is_flag=True, help='Scan all accounts in AWS Organization (requires management account access)')
 @click.option('--csv', is_flag=True, help='Export deprecated runtimes to CSV file with auto-generated filename')
+@click.option('--update-runtimes', is_flag=True, help='Update runtime database from AWS documentation before scanning')
 def main(**kwargs) -> None:
     """AWS Lambda Assessment Scanner - Analyze Lambda functions across regions."""
 
@@ -399,6 +403,15 @@ def main(**kwargs) -> None:
         default_region=config_data['aws']['default_region']
     )
     runtime_checker = RuntimeChecker()
+
+    # Update runtime database if requested
+    if kwargs.get('update_runtimes'):
+        logger.info("Updating runtime database from AWS documentation...")
+        update_success = runtime_checker.update_runtime_data_from_aws_docs()
+        if update_success:
+            logger.info("Runtime database updated successfully")
+        else:
+            logger.warning("Failed to update runtime database, continuing with existing data")
 
     # Get account ID for filename generation
     account_id = aws_client.get_account_id()

@@ -107,6 +107,31 @@ Example deprecated runtime output:
    → Consider upgrading these 2 function(s) to supported runtimes
 ```
 
+## Runtime Database Updates
+
+Keep the runtime database current with the latest AWS Lambda runtime information:
+
+```bash
+# Update runtime database from AWS documentation before scanning
+python lambda_scanner.py --update-runtimes --profile my-profile
+
+# Combine with organization scanning
+python lambda_scanner.py --update-runtimes --org --csv
+
+# Update and scan with verbose output
+python lambda_scanner.py --update-runtimes --profile my-profile --verbose
+```
+
+The `--update-runtimes` flag fetches the latest runtime support information from AWS Lambda documentation, including:
+- **New runtimes**: Automatically detect newly released runtimes (e.g., `python3.13`, `nodejs22.x`, `ruby3.4`)
+- **Updated deprecation dates**: Get current deprecation schedules from AWS
+- **Support status changes**: Identify runtimes that have moved from supported to deprecated
+
+**Benefits:**
+- Always scan with the most current runtime data
+- Detect new deprecated runtimes immediately after AWS announcements
+- No manual updates required to the runtime database
+
 ## CSV Export for Deprecated Runtimes
 
 The `--csv` option creates a CSV file containing only Lambda functions with deprecated runtimes, making it easy to track and remediate outdated functions across your organization.
