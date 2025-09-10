@@ -165,7 +165,9 @@ class TestLambdaScanner:
                 'support_status': 'deprecated',
                 'function_name': 'DeprecatedFunction1',
                 'region': 'us-east-1',
-                'account_id': '123456789012'
+                'account_id': '123456789012',
+                'description': 'Test deprecated function',
+                'tags': 'Environment=test,Owner=team1'
             },
             {
                 'runtime': 'python3.9',
@@ -174,7 +176,9 @@ class TestLambdaScanner:
                 'support_status': 'supported',
                 'function_name': 'SupportedFunction',
                 'region': 'us-east-1',
-                'account_id': '123456789012'
+                'account_id': '123456789012',
+                'description': 'Test supported function',
+                'tags': 'Environment=prod'
             },
             {
                 'runtime': 'nodejs14.x',
@@ -183,7 +187,9 @@ class TestLambdaScanner:
                 'support_status': 'deprecated',
                 'function_name': 'DeprecatedFunction2',
                 'region': 'us-west-2',
-                'account_id': '987654321098'
+                'account_id': '987654321098',
+                'description': '',
+                'tags': ''
             }
         ]
 
@@ -196,12 +202,14 @@ class TestLambdaScanner:
         with open(csv_file, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # Check header
-        assert "account_number,region,language,language_version,name,ARN" in content
+        # Check header includes new columns
+        assert "account_number,region,language,language_version,name,ARN,description,tags" in content
 
-        # Check deprecated functions are included
+        # Check deprecated functions are included with description and tags
         assert "123456789012,us-east-1,Python,3.7,DeprecatedFunction1" in content
         assert "987654321098,us-west-2,Node.js,14.x,DeprecatedFunction2" in content
+        assert "Test deprecated function" in content
+        assert "Environment=test,Owner=team1" in content
 
         # Check ARNs are correctly formatted
         assert "arn:aws:lambda:us-east-1:123456789012:function:DeprecatedFunction1" in content

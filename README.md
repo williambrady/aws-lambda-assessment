@@ -145,6 +145,8 @@ The CSV file includes the following columns:
 - **language_version**: Language version (e.g., 3.13, 14.x)
 - **name**: Lambda function name
 - **ARN**: Complete Lambda function ARN
+- **description**: Function description (if provided)
+- **tags**: Function tags formatted as "key1=value1,key2=value2" (if any)
 
 ### CSV Export Examples
 
@@ -162,9 +164,10 @@ python lambda_scanner.py --org --region us-east-1 --csv deprecated_runtimes.csv 
 ### Sample CSV Output
 
 ```csv
-account_number,region,language,language_version,name,ARN
-018194650040,us-east-1,Python,3.13,aws-controltower-NotificationForwarder,arn:aws:lambda:us-east-1:018194650040:function:aws-controltower-NotificationForwarder
-514869215994,us-east-1,Python,3.13,tf-sample-aws-dev-web-app,arn:aws:lambda:us-east-1:514869215994:function:tf-sample-aws-dev-web-app
+account_number,region,language,language_version,name,ARN,description,tags
+018194650040,us-east-1,Python,3.13,aws-controltower-NotificationForwarder,arn:aws:lambda:us-east-1:018194650040:function:aws-controltower-NotificationForwarder,Notification forwarder for Control Tower,Environment=prod,Team=security
+514869215994,us-east-1,Python,3.13,tf-sample-aws-dev-web-app,arn:aws:lambda:us-east-1:514869215994:function:tf-sample-aws-dev-web-app,Sample web application,Environment=dev,Project=terraform-sample
+850995578796,us-west-2,Node.js,18.x,lex-web-ui-authorizer,arn:aws:lambda:us-west-2:850995578796:function:lex-web-ui-authorizer,JWT Authorizer for API Gateway,Application=icc-ui-live-chat,Environment=dev
 ```
 
 **Note**: If no deprecated runtimes are found, the CSV file will not be created and a message will be logged.

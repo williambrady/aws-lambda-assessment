@@ -124,6 +124,26 @@ class LambdaAnalyzer:
         except ClientError as e:
             self.logger.warning("Could not get configuration for %s: %s", function_name, e)
 
+        # Get function tags
+        try:
+            # Use the FunctionArn from the function data if available, otherwise construct it
+            function_arn = function_data.get('FunctionArn')
+            if not function_arn:
+                # Construct ARN if not provided
+                function_arn = f"arn:aws:lambda:{region}:*:function:{function_name}"
+
+            tags_response = lambda_client.list_tags(Resource=function_arn)
+            tags = tags_response.get('Tags', {})
+            # Format tags as "key1=value1,key2=value2" for CSV compatibility
+            if tags:
+                tags_formatted = ','.join([f"{k}={v}" for k, v in tags.items()])
+            else:
+                tags_formatted = ''
+            result['tags'] = tags_formatted
+        except ClientError as e:
+            self.logger.warning("Could not get tags for %s: %s", function_name, e)
+            result['tags'] = ''
+
         # Analyze code complexity
         try:
             complexity_info = self._analyze_code_complexity(lambda_client, function_name)

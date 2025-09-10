@@ -122,7 +122,9 @@ def export_deprecated_runtimes_csv(all_results: list, csv_file: str, logger) -> 
                 'language',
                 'language_version',
                 'name',
-                'ARN'
+                'ARN',
+                'description',
+                'tags'
             ]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
@@ -141,7 +143,9 @@ def export_deprecated_runtimes_csv(all_results: list, csv_file: str, logger) -> 
                     'language': func['language_name'],
                     'language_version': func['language_version'],
                     'name': func['function_name'],
-                    'ARN': arn
+                    'ARN': arn,
+                    'description': func.get('description', ''),
+                    'tags': func.get('tags', '')
                 }
                 writer.writerow(row)
 

@@ -56,8 +56,8 @@ class TestRuntimeChecker:
         summary = checker.get_language_summary(runtimes)
 
         assert summary['total_runtimes'] == 4
-        assert summary['supported_count'] == 3
-        assert summary['deprecated_count'] == 1
+        assert summary['supported_count'] == 2  # python3.11 and java17 are supported
+        assert summary['deprecated_count'] == 2  # python3.7 and nodejs18.x are deprecated
         assert 'Python' in summary['languages']
         assert 'Node.js' in summary['languages']
         assert 'Java' in summary['languages']

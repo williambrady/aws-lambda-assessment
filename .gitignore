@@ -209,5 +209,7 @@ __marimo__/
 # AWS Lambda Assessment specific
 *.json
 *.csv
+*.xlsx
+*.xls
 bandit-report.json
 safety-report.json
