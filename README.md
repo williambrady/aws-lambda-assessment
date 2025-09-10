@@ -124,11 +124,11 @@ The CSV file includes the following columns:
 ### CSV Export Examples
 
 ```bash
-# Export deprecated runtimes from single account
-python lambda_scanner.py --csv deprecated_runtimes.csv
+# Export deprecated runtimes from single account (auto-generated filename)
+python lambda_scanner.py --csv
 
-# Export deprecated runtimes from organization
-python lambda_scanner.py --org --csv org_deprecated_runtimes.csv
+# Export deprecated runtimes from organization (auto-generated filename)
+python lambda_scanner.py --org --csv
 
 # Combine with other options
 python lambda_scanner.py --org --region us-east-1 --csv deprecated_runtimes.csv --verbose
@@ -159,9 +159,9 @@ All output files (JSON reports and CSV exports) are automatically prefixed with 
 20250910-103606-992382657570_lambda_assessment_report.json
 20250910-103606-992382657570_deprecated_runtimes.csv
 
-# Custom output filenames
+# Custom JSON output filename (CSV uses auto-generated name)
 20250910-142530-123456789012_custom_report.json
-20250910-142530-123456789012_my_deprecated.csv
+20250910-142530-123456789012_deprecated_runtimes.csv
 ```
 
 ### Benefits

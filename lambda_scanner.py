@@ -376,7 +376,7 @@ def generate_timestamped_filename(base_filename: str, account_id: str = None) ->
 @click.option('--format', '-f', 'output_format', type=click.Choice(['json', 'csv']), help='Output format')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
 @click.option('--org', is_flag=True, help='Scan all accounts in AWS Organization (requires management account access)')
-@click.option('--csv', help='Export deprecated runtimes to CSV file (e.g., deprecated_runtimes.csv)')
+@click.option('--csv', is_flag=True, help='Export deprecated runtimes to CSV file with auto-generated filename')
 def main(**kwargs) -> None:
     """AWS Lambda Assessment Scanner - Analyze Lambda functions across regions."""
 
@@ -424,6 +424,10 @@ def main(**kwargs) -> None:
         logger.info("Scanning %d regions: %s", len(regions), ', '.join(regions))
         all_results = scan_regions(lambda_analyzer, runtime_checker, regions, logger)
 
+        # Add account information to each result for single account mode
+        for result in all_results:
+            result['account_id'] = account_id
+
     # Generate report
     report = {
         'scan_timestamp': datetime.utcnow().isoformat(),
@@ -445,9 +449,11 @@ def main(**kwargs) -> None:
     print_summary(all_results, regions, kwargs.get('org', False))
 
     # Export deprecated runtimes to CSV if requested
-    csv_file = kwargs.get('csv')
-    if csv_file:
-        timestamped_csv_file = generate_timestamped_filename(csv_file, account_id)
+    csv_flag = kwargs.get('csv')
+    if csv_flag:
+        # Generate automatic filename for CSV export
+        base_csv_filename = 'deprecated_runtimes.csv'
+        timestamped_csv_file = generate_timestamped_filename(base_csv_filename, account_id)
         export_deprecated_runtimes_csv(all_results, timestamped_csv_file, logger)
 
     logger.info("Scan complete. Found %d Lambda functions across %d regions",
