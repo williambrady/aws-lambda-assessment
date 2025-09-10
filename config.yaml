@@ -1,0 +1,20 @@
+aws:
+  profile: calnet-hr
+  default_region: us-west-2
+  regions:
+    - us-east-1
+    - us-west-2
+
+output:
+  format: json
+  file: lambda_assessment_report.json
+  include_timestamp: true
+
+scanning:
+  include_code_analysis: true
+  max_concurrent_requests: 10
+  timeout_seconds: 30
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
